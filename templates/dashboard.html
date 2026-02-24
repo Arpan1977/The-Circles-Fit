@@ -1,0 +1,178 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#investmentHistoryModal">
+    💰 Manage Capital
+</button>
+    </div>
+</div>
+
+<div class="modal fade" id="investmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Capital/Investment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form action="/add_investment" method="POST">
+          <div class="modal-body">
+            <div class="mb-3">
+                <label>Amount (Rs)</label>
+                <input type="number" step="0.01" name="amount" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label>Note (Source)</label>
+                <input type="text" name="note" class="form-control" placeholder="e.g. My Savings, Loan, etc.">
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Save Investment</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-dark bg-success mb-3 h-100">
+            <div class="card-header">Total Revenue</div>
+            <div class="card-body">
+                <h2 class="card-title">Rs. {{ sales }}</h2>
+                <small>Gross Sales</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card text-dark bg-danger mb-3 h-100">
+            <div class="card-header">Total Expenses</div>
+            <div class="card-body">
+                <h2 class="card-title">Rs. {{ expenses }}</h2>
+                <small>Bills + Product Costs (COGS)</small> <div class="mt-2">
+                    <a href="/expenses" class="text-white text-decoration-underline small">View Details</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card text-dark bg-warning mb-3 h-100">
+            <div class="card-header">Total Profit</div>
+            <div class="card-body">
+                <h2 class="card-title">Rs. {{ net_profit }}</h2>
+                <small>Profit from Sales Only</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card text-dark bg-primary mb-3 h-100">
+            <div class="card-header">Cash in Hand</div>
+            <div class="card-body">
+                <h2 class="card-title">Rs. {{ cash_in_hand }}</h2>
+                <small>Invested: Rs. {{ total_investment }}</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-danger h-100">
+            <div class="card-header bg-transparent text-danger fw-bold">Low Stock</div>
+            <ul class="list-group list-group-flush list-group-sm">
+                {% for item in low_stock %}
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>{{ item.name }}</span>
+                    <span class="badge bg-danger rounded-pill">{{ item.stock }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Recent Orders</h3>
+    <div>
+        <a href="/export_excel" class="btn btn-success me-2">📥 Export P&L</a>
+        <a href="/orders" class="btn btn-primary">View All Orders</a>
+    </div>
+</div>
+
+
+
+<table class="table table-striped bg-white align-middle">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Customer</th>
+            <th>Amount</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for order in orders %}
+        <tr>
+            <td>#{{ order.id }}</td>
+            <td><strong>{{ order.customer_name }}</strong></td>
+            <td>Rs. {{ order.total_amount }}</td>
+            <td><span class="badge bg-secondary">{{ order.status }}</span></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="modal fade" id="investmentHistoryModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"> <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Capital & Investment Manager</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        
+        <div class="card mb-4 bg-light border-0">
+            <div class="card-body">
+                <h6>➕ Add New Capital</h6>
+                <form action="/add_investment" method="POST" class="d-flex gap-2">
+                    <input type="number" step="0.01" name="amount" class="form-control" placeholder="Amount (Rs)" required>
+                    <input type="text" name="note" class="form-control" placeholder="Source (e.g. Loan, Savings)">
+                    <button type="submit" class="btn btn-success">Add</button>
+                </form>
+            </div>
+        </div>
+
+        <h6>📜 Investment History</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Note</th>
+                        <th>Amount</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in investments %}
+                    <tr>
+                        <td>{{ inv.date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ inv.note }}</td>
+                        <td class="fw-bold text-success">Rs. {{ inv.amount }}</td>
+                        <td>
+                            <a href="/edit_investment/{{ inv.id }}" class="btn btn-sm btn-outline-primary">✏️</a>
+                            <a href="/delete_investment/{{ inv.id }}" 
+                               class="btn btn-sm btn-outline-danger"
+                               onclick="return confirm('Delete this record? This will reduce your Cash in Hand.')">🗑️</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
