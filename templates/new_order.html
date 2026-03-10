@@ -42,14 +42,79 @@
     </div>
 
     <div class="col-md-7">
-        <div class="input-group mb-3">
+        <!-- Search Bar -->
+        <div class="input-group mb-2">
             <span class="input-group-text bg-white">🔍</span>
-            <input type="text" id="searchInput" class="form-control" placeholder="Search..." onkeyup="filterProducts()">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search by name or SKU..." onkeyup="applyFilters()">
         </div>
 
-        <div class="row row-cols-1 row-cols-md-3 g-3" id="productGrid" style="max-height: 80vh; overflow-y: auto;">
+        <!-- Filter Panel -->
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body p-2">
+
+                <!-- Row 1: Category + Stock Toggle -->
+                <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                    <!-- Category Filter -->
+                    <select id="categoryFilter" class="form-select form-select-sm" style="max-width: 180px;" onchange="applyFilters()">
+                        <option value="">All Categories</option>
+                        {% set categories = [] %}
+                        {% for p in products %}
+                            {% if p.category and p.category not in categories %}
+                                {% set _ = categories.append(p.category) %}
+                                <option value="{{ p.category.lower() }}">{{ p.category }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+
+                    <!-- In Stock Toggle -->
+                    <div class="form-check form-switch ms-2 mb-0">
+                        <input class="form-check-input" type="checkbox" id="inStockOnly" onchange="applyFilters()">
+                        <label class="form-check-label small" for="inStockOnly">In Stock Only</label>
+                    </div>
+
+                    <!-- Clear All Filters -->
+                    <button class="btn btn-outline-secondary btn-sm ms-auto" onclick="clearFilters()">✕ Clear</button>
+                </div>
+
+                <!-- Row 2: Price Range -->
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="small text-muted" style="white-space:nowrap;">Price:</span>
+                    <input type="number" id="priceMin" class="form-control form-control-sm text-center" placeholder="Min" style="width: 75px;" oninput="applyFilters()">
+                    <span class="small text-muted">–</span>
+                    <input type="number" id="priceMax" class="form-control form-control-sm text-center" placeholder="Max" style="width: 75px;" oninput="applyFilters()">
+                    <span class="small text-muted">Rs.</span>
+                </div>
+
+                <!-- Row 3: Size Filter Pills -->
+                <div class="d-flex flex-wrap gap-1 align-items-center">
+                    <span class="small text-muted me-1">Size:</span>
+                    <button class="btn btn-sm size-pill btn-dark active-pill" data-size="" onclick="selectSize(this)">All</button>
+                    {% set sizes = [] %}
+                    {% for p in products %}
+                        {% if p.size and p.size not in sizes %}
+                            {% set _ = sizes.append(p.size) %}
+                            <button class="btn btn-sm size-pill btn-outline-secondary" data-size="{{ p.size.lower() }}" onclick="selectSize(this)">{{ p.size }}</button>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Active Filter Summary -->
+        <div id="filterSummary" class="mb-2 small text-muted d-none">
+            Showing <strong id="visibleCount">0</strong> of <strong id="totalCount">0</strong> products
+        </div>
+
+        <!-- Product Grid -->
+        <div class="row row-cols-1 row-cols-md-3 g-3" id="productGrid" style="max-height: 72vh; overflow-y: auto;">
             {% for p in products %}
-            <div class="col product-card-col" data-name="{{ p.name.lower() }} {{ p.sku.lower() if p.sku else '' }}">
+            <div class="col product-card-col"
+                 data-name="{{ p.name.lower() }} {{ p.sku.lower() if p.sku else '' }}"
+                 data-category="{{ p.category.lower() if p.category else '' }}"
+                 data-size="{{ p.size.lower() if p.size else '' }}"
+                 data-price="{{ p.price }}"
+                 data-stock="{{ p.stock }}">
                 <div class="card h-100 shadow-sm border-0" onclick="addToCart({{ p.id }}, '{{ p.name }}', '{{ p.size }}', {{ p.price }}, {{ p.stock }})" style="cursor: pointer;">
                     <div style="height: 150px; overflow: hidden; background-color: #f8f9fa;" class="d-flex align-items-center justify-content-center">
                         {% if p.image %}
@@ -71,15 +136,73 @@
     </div>
 </div>
 
+<style>
+    .size-pill { border-radius: 20px; padding: 2px 10px; font-size: 12px; }
+    .active-pill { background-color: #343a40 !important; color: #fff !important; border-color: #343a40 !important; }
+</style>
+
 <script>
     let cart = [];
+    let selectedSize = "";
 
-    function filterProducts() {
-        const input = document.getElementById('searchInput').value.toLowerCase();
-        const cards = document.getElementsByClassName('product-card-col');
-        for (let card of cards) card.style.display = card.getAttribute('data-name').includes(input) ? "" : "none";
+    /* ── Size pill selection ── */
+    function selectSize(btn) {
+        document.querySelectorAll('.size-pill').forEach(b => b.classList.remove('active-pill', 'btn-dark'));
+        btn.classList.add('active-pill', 'btn-dark');
+        selectedSize = btn.getAttribute('data-size');
+        applyFilters();
     }
 
+    /* ── Master filter function ── */
+    function applyFilters() {
+        const search   = document.getElementById('searchInput').value.toLowerCase();
+        const category = document.getElementById('categoryFilter').value.toLowerCase();
+        const priceMin = parseFloat(document.getElementById('priceMin').value) || 0;
+        const priceMax = parseFloat(document.getElementById('priceMax').value) || Infinity;
+        const inStock  = document.getElementById('inStockOnly').checked;
+
+        const cards = document.querySelectorAll('.product-card-col');
+        let visible = 0;
+
+        cards.forEach(card => {
+            const name     = card.getAttribute('data-name') || '';
+            const cat      = card.getAttribute('data-category') || '';
+            const size     = card.getAttribute('data-size') || '';
+            const price    = parseFloat(card.getAttribute('data-price')) || 0;
+            const stock    = parseInt(card.getAttribute('data-stock')) || 0;
+
+            const matchSearch   = name.includes(search);
+            const matchCategory = !category || cat === category;
+            const matchSize     = !selectedSize || size === selectedSize;
+            const matchPrice    = price >= priceMin && price <= priceMax;
+            const matchStock    = !inStock || stock > 0;
+
+            const show = matchSearch && matchCategory && matchSize && matchPrice && matchStock;
+            card.style.display = show ? '' : 'none';
+            if (show) visible++;
+        });
+
+        /* Update summary */
+        const summary = document.getElementById('filterSummary');
+        document.getElementById('visibleCount').textContent = visible;
+        document.getElementById('totalCount').textContent = cards.length;
+        summary.classList.toggle('d-none', visible === cards.length);
+    }
+
+    /* ── Clear all filters ── */
+    function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('categoryFilter').value = '';
+        document.getElementById('priceMin').value = '';
+        document.getElementById('priceMax').value = '';
+        document.getElementById('inStockOnly').checked = false;
+        selectedSize = '';
+        document.querySelectorAll('.size-pill').forEach(b => b.classList.remove('active-pill', 'btn-dark'));
+        document.querySelector('.size-pill[data-size=""]').classList.add('active-pill', 'btn-dark');
+        applyFilters();
+    }
+
+    /* ── Cart functions ── */
     function addToCart(id, name, size, price, maxStock) {
         const existingItem = cart.find(i => i.id === id);
         if (existingItem) {
@@ -100,7 +223,6 @@
         cart.forEach((item, index) => {
             const sub = (item.price * item.qty) - item.discount;
             total += sub;
-            
             tbody.innerHTML += `
                 <tr>
                     <td>
